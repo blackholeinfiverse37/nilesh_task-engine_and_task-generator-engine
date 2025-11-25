@@ -1,0 +1,8 @@
+torch
+transformers
+gitpython
+pydantic
+jsonschema
+datasets
+accelerate
+python-dotenv

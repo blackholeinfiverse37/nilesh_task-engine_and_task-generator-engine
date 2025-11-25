@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "good_aspects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of positive aspects found in the task submission"
+    },
+    "missing_aspects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of aspects that are missing or need improvement"
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Overall score out of 10"
+    }
+  },
+  "required": ["good_aspects", "missing_aspects", "score"]
+}

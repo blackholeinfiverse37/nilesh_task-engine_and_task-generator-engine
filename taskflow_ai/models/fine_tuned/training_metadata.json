@@ -1,0 +1,13 @@
+{
+  "model_name": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "vocab_size": 32000,
+  "max_position_embeddings": 2048,
+  "trained_with_rl": true,
+  "training_completed": true,
+  "rl_iterations": 10,
+  "total_model_updates": 25,
+  "final_performance": {
+    "average_reward": 0.85,
+    "schema_compliance_rate": 0.92
+  }
+}

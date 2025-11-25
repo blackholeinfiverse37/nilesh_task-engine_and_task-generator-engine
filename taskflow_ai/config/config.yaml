@@ -1,0 +1,24 @@
+model:
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  max_length: 512
+  fine_tune_epochs: 3
+  output_dir: "./models/fine_tuned"
+
+github:
+  clone_dir: "/tmp/taskflow_clones"
+  api_timeout: 30
+
+logging:
+  level: "INFO"
+  file: "taskflow.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+rl:
+  reward_threshold: 0.8
+  min_samples_for_retrain: 10
+  penalty: -1.0
+  reward: 1.0
+
+validation:
+  max_retries: 3
+  correction_attempts: 2

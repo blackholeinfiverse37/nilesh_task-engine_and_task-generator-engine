@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "task_description": {
+      "type": "string",
+      "description": "Detailed description of the next task to be completed"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of specific requirements or steps for the task"
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["beginner", "intermediate", "advanced"],
+      "description": "Difficulty level of the task"
+    },
+    "estimated_time": {
+      "type": "string",
+      "description": "Estimated time to complete the task (e.g., '2 hours', '1 day')"
+    },
+    "skills_focused": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Skills that this task is designed to develop or reinforce"
+    }
+  },
+  "required": ["task_description", "requirements"]
+}
