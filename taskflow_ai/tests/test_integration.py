@@ -224,10 +224,17 @@ class TestIntegration(unittest.TestCase):
         task_med = generate_next_task("dev2", "intermediate", "task2", review_med)
         task_high = generate_next_task("dev3", "advanced", "task3", review_high)
 
-        # Check that all required fields are present
-        required_fields = ["task_id", "title", "description", "steps", "acceptance_criteria", "difficulty", "estimated_time"]
+        # Check that all required fields from generator_schema.json are present
+        required_fields = ["task_description", "requirements", "difficulty", "estimated_time"]
 
         for field in required_fields:
+            self.assertIn(field, task_low)
+            self.assertIn(field, task_med)
+            self.assertIn(field, task_high)
+
+        # Check that optional fields are present
+        optional_fields = ["skills_focused"]
+        for field in optional_fields:
             self.assertIn(field, task_low)
             self.assertIn(field, task_med)
             self.assertIn(field, task_high)
@@ -237,13 +244,48 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(task_med["difficulty"], "intermediate")
         self.assertEqual(task_high["difficulty"], "advanced")
 
-        # Check that steps and criteria are arrays
-        self.assertIsInstance(task_low["steps"], list)
-        self.assertIsInstance(task_low["acceptance_criteria"], list)
+        # Check that requirements and skills_focused are arrays
+        self.assertIsInstance(task_low["requirements"], list)
+        self.assertIsInstance(task_low["skills_focused"], list)
 
-        # Check that task IDs are unique
-        self.assertNotEqual(task_low["task_id"], task_med["task_id"])
-        self.assertNotEqual(task_med["task_id"], task_high["task_id"])
+        # Check that requirements have content
+        self.assertGreater(len(task_low["requirements"]), 0)
+        self.assertGreater(len(task_med["requirements"]), 0)
+        self.assertGreater(len(task_high["requirements"]), 0)
+
+    def test_rl_schema_validation_fix(self):
+        """Test that RL training now uses proper schema validation instead of empty schema."""
+        from taskflow_ai.rewards import RewardSystem
+        from unittest.mock import Mock
+
+        # Mock Mini-LM that returns valid JSON
+        mock_mini_lm = Mock()
+        mock_mini_lm.generate.side_effect = lambda prompt, **kwargs: '{"test": "data", "number": 42}'
+
+        reward_system = RewardSystem(mock_mini_lm)
+
+        # Test that _is_valid_json works with proper schema
+        basic_schema = {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": True
+        }
+
+        valid_output = '{"test": "data"}'
+        is_valid = reward_system._is_valid_json(valid_output, basic_schema)
+        self.assertTrue(is_valid)
+
+        # Test with invalid JSON
+        invalid_output = 'not json at all'
+        is_valid = reward_system._is_valid_json(invalid_output, basic_schema)
+        self.assertFalse(is_valid)
+
+        # Test reward calculation with schema validation
+        reward = reward_system.evaluate_output("test prompt", valid_output, basic_schema)
+        self.assertEqual(reward, 1)  # Should be positive for valid JSON
+
+        reward = reward_system.evaluate_output("test prompt", invalid_output, basic_schema)
+        self.assertEqual(reward, -1)  # Should be negative for invalid JSON
 
 if __name__ == '__main__':
     unittest.main()

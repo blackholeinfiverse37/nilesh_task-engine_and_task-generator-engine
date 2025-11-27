@@ -72,16 +72,21 @@ class RewardSystem:
             "accuracy": accuracy
         }
 
-    def run_rl_training_loop(self, max_iterations=10, train_batch_size=4):
+    def run_rl_training_loop(self, mini_lm=None, reward_system=None, num_iterations=10):
         """
         Run the COMPLETE RL FEEDBACK LOOP with actual model training.
 
         This implements: output → reward → update model → repeat
 
         Args:
-            max_iterations (int): Maximum number of RL training iterations
-            train_batch_size (int): Batch size for training updates
+            mini_lm (MiniLM): The model to train (for compatibility)
+            reward_system: Self-reference for compatibility
+            num_iterations (int): Number of RL training iterations
         """
+        if mini_lm is None:
+            mini_lm = self.mini_lm
+        if reward_system is None:
+            reward_system = self
         print("🚀 Starting RL Training Loop (Output → Reward → Model Update)")
         print("=" * 60)
 
@@ -115,8 +120,13 @@ class RewardSystem:
                     output = self.mini_lm.generate(prompt, max_tokens=150)
                     print(f"✅ Output: {output[:80]}...")
 
-                    # Step 2: Calculate reward
-                    is_valid = self._is_valid_json(output, {})
+                    # Step 2: Calculate reward using basic JSON structure validation
+                    basic_json_schema = {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": True  # Allow any properties for RL training
+                    }
+                    is_valid = self._is_valid_json(output, basic_json_schema)
                     reward = self.reward_output(is_valid)
                     iteration_rewards.append(reward)
 

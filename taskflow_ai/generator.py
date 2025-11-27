@@ -11,25 +11,22 @@ if os.path.exists(SCHEMA_PATH):
 else:
     generator_schema = None
 
-# STRICT RULE-BOUND TEMPLATE - NO LLM INVOLVEMENT
+# STRICT RULE-BOUND TEMPLATE - MATCHES generator_schema.json
 TASK_TEMPLATE = {
-    "task_id": "task_{task_id}",
-    "title": "{title}",
-    "description": "{description}",
-    "steps": [
-        "Step 1: {step1}",
-        "Step 2: {step2}",
-        "Step 3: {step3}",
-        "Step 4: {step4}"
-    ],
-    "acceptance_criteria": [
-        "Criteria 1: {criteria1}",
-        "Criteria 2: {criteria2}",
-        "Criteria 3: {criteria3}",
-        "Criteria 4: {criteria4}"
+    "task_description": "{task_description}",
+    "requirements": [
+        "{requirement1}",
+        "{requirement2}",
+        "{requirement3}",
+        "{requirement4}"
     ],
     "difficulty": "{difficulty}",
-    "estimated_time": "{estimated_time}"
+    "estimated_time": "{estimated_time}",
+    "skills_focused": [
+        "{skill1}",
+        "{skill2}",
+        "{skill3}"
+    ]
 }
 
 
@@ -40,78 +37,69 @@ def generate_next_task(developer_id: str, current_skill: str, last_task: str, re
     """
     score = review.get("score", 5)
 
-    # RULE-BASED TEMPLATE SELECTION - STRICT AND DETERMINISTIC
+    # RULE-BASED TEMPLATE SELECTION - STRICT DETERMINISTIC
     if score <= 3:
+        # POOR SCORE - FOCUS ON BASICS
         template_data = {
-            "task_id": uuid.uuid4().hex[:8],
-            "title": "Fix Repository Basics",
-            "description": "Address fundamental repository issues and establish proper structure",
-            "step1": "Create comprehensive README.md with project overview",
-            "step2": "Add proper project structure and organization",
-            "step3": "Include basic documentation for all files",
-            "step4": "Add license and contribution guidelines",
-            "criteria1": "README.md exists with clear project description",
-            "criteria2": "Project has logical folder structure",
-            "criteria3": "All code files have basic comments",
-            "criteria4": "License file is present",
+            "task_description": "Address fundamental repository issues and establish proper structure by creating comprehensive documentation and organizing the project layout.",
+            "requirement1": "Create comprehensive README.md with project overview, setup instructions, and usage examples",
+            "requirement2": "Add proper project structure and organization with clear folder hierarchy",
+            "requirement3": "Include basic documentation for all code files with comments and docstrings",
+            "requirement4": "Add license file and contribution guidelines to make the project professional",
             "difficulty": "beginner",
-            "estimated_time": "2-3 hours"
+            "estimated_time": "2-3 hours",
+            "skill1": "Documentation",
+            "skill2": "Project Organization",
+            "skill3": "Professional Development Practices"
         }
-
     elif score <= 6:
+        # FAIR SCORE - FOCUS ON QUALITY
         template_data = {
-            "task_id": uuid.uuid4().hex[:8],
-            "title": "Improve Code Quality",
-            "description": "Enhance code quality through refactoring and testing",
-            "step1": "Analyze existing code for improvement areas",
-            "step2": "Refactor code for better readability and maintainability",
-            "step3": "Add unit tests for core functionality",
-            "step4": "Improve error handling and input validation",
-            "criteria1": "Code follows consistent style and naming conventions",
-            "criteria2": "Unit tests exist for main functions",
-            "criteria3": "Error handling is comprehensive",
-            "criteria4": "Code is more modular and reusable",
+            "task_description": "Enhance code quality through systematic refactoring, testing implementation, and improved error handling to make the codebase more maintainable and reliable.",
+            "requirement1": "Analyze existing code for improvement areas and potential bugs",
+            "requirement2": "Refactor code for better readability, maintainability, and following best practices",
+            "requirement3": "Add comprehensive unit tests for core functionality with good coverage",
+            "requirement4": "Improve error handling and input validation throughout the application",
             "difficulty": "intermediate",
-            "estimated_time": "4-6 hours"
+            "estimated_time": "4-6 hours",
+            "skill1": "Code Quality",
+            "skill2": "Testing",
+            "skill3": "Error Handling"
         }
-
     else:
+        # GOOD SCORE - FOCUS ON ADVANCED FEATURES
         template_data = {
-            "task_id": uuid.uuid4().hex[:8],
-            "title": "Add Advanced Features",
-            "description": "Implement advanced functionality and performance optimizations",
-            "step1": "Identify performance bottlenecks and optimization opportunities",
-            "step2": "Implement advanced features based on project requirements",
-            "step3": "Add comprehensive integration tests",
-            "step4": "Implement logging and monitoring capabilities",
-            "criteria1": "Performance is measurably improved",
-            "criteria2": "Advanced features are fully functional",
-            "criteria3": "Test coverage exceeds 80%",
-            "criteria4": "Application is production-ready with monitoring",
+            "task_description": "Implement advanced functionality and performance optimizations to take the project to the next level with production-ready features and monitoring capabilities.",
+            "requirement1": "Identify performance bottlenecks and implement optimization strategies",
+            "requirement2": "Implement advanced features based on project requirements and user needs",
+            "requirement3": "Add comprehensive integration tests and end-to-end testing",
+            "requirement4": "Implement logging, monitoring, and observability capabilities for production use",
             "difficulty": "advanced",
-            "estimated_time": "6-8 hours"
+            "estimated_time": "6-8 hours",
+            "skill1": "Performance Optimization",
+            "skill2": "Advanced Development",
+            "skill3": "Production Engineering"
         }
 
-    # STRICT TEMPLATE FILLING
+    # STRICT TEMPLATE FILLING - MATCHES generator_schema.json
     task = TASK_TEMPLATE.copy()
-    task["task_id"] = task["task_id"].format(task_id=template_data["task_id"])
-    task["title"] = task["title"].format(title=template_data["title"])
-    task["description"] = task["description"].format(description=template_data["description"])
+    task["task_description"] = task["task_description"].format(task_description=template_data["task_description"])
     task["difficulty"] = task["difficulty"].format(difficulty=template_data["difficulty"])
     task["estimated_time"] = task["estimated_time"].format(estimated_time=template_data["estimated_time"])
 
-    task["steps"] = [
-        f"Step 1: {template_data['step1']}",
-        f"Step 2: {template_data['step2']}",
-        f"Step 3: {template_data['step3']}",
-        f"Step 4: {template_data['step4']}",
+    # Fill requirements array
+    task["requirements"] = [
+        task["requirements"][0].format(requirement1=template_data["requirement1"]),
+        task["requirements"][1].format(requirement2=template_data["requirement2"]),
+        task["requirements"][2].format(requirement3=template_data["requirement3"]),
+        task["requirements"][3].format(requirement4=template_data["requirement4"])
     ]
 
-    task["acceptance_criteria"] = [
-        f"Criteria 1: {template_data['criteria1']}",
-        f"Criteria 2: {template_data['criteria2']}",
-        f"Criteria 3: {template_data['criteria3']}",
-        f"Criteria 4: {template_data['criteria4']}",
+    # Fill skills_focused array
+    task["skills_focused"] = [
+        task["skills_focused"][0].format(skill1=template_data["skill1"]),
+        task["skills_focused"][1].format(skill2=template_data["skill2"]),
+        task["skills_focused"][2].format(skill3=template_data["skill3"])
     ]
 
     return task
