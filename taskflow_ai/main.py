@@ -1,151 +1,103 @@
-#!/usr/bin/env python3
-"""
-End-to-end pipeline for TaskFlow AI system.
-"""
+import os
+import json
 
 from .reviewer import review_repository
 from .generator import generate_next_task
 from .mini_lm import MiniLM
 from .rewards import RewardSystem
 
-def pipeline(repo_url, dev_id, skill, last_task):
-    """
-    Complete pipeline: reviewer → generator → LM → reward → next task
-    """
-    print("🚀 Starting TaskFlow AI Pipeline")
-    print(f"📂 Repository: {repo_url}")
-    print(f"👤 Developer: {dev_id} ({skill})")
-    print(f"✅ Last Task: {last_task}")
-    print("-" * 50)
 
-    # Step 1: Review the repository
-    print("📋 Step 1: Reviewing repository...")
+def run_pipeline():
+    print("\n=== TaskFlow AI Pipeline ===\n")
+
+    repo_url = input("Enter GitHub repository URL: ").strip()
+    developer_id = input("Enter Developer ID: ").strip()
+    skill = input("Enter developer skill level (beginner/intermediate/advanced): ").strip()
+
+    print("\nReviewing repository...\n")
     review_output = review_repository(repo_url)
-    print(f"✅ Review complete - Score: {review_output['score']}/10")
-    print(f"💪 Strengths: {len(review_output['strengths'])} items")
-    print(f"⚠️  Weaknesses: {len(review_output['weaknesses'])} items")
-    print()
 
-    # Step 2: Initialize Mini-LM and Reward System
-    print("🤖 Step 2: Initializing AI components...")
+    print("Repository Review Result:")
+    print(json.dumps(review_output, indent=4))
+
+    # Last task placeholder
+    last_task = "No previous task"  # You can change this if you store task history
+
+    # --- Correct Schema-Compatible Prompt ---
+    task_prompt = f"""
+    You are TaskFlow AI. Generate the next development task for developer '{developer_id}' (skill: '{skill}').
+
+    Last completed task: {last_task}
+    Repository review score: {review_output['score']}/10
+    Weaknesses identified: {', '.join(review_output.get('weaknesses', []))}
+
+    Generate ONLY valid JSON following this EXACT schema:
+
+    {{
+      "task_description": "Explain what the developer must do next.",
+      "requirements": [
+        "Clear requirement 1",
+        "Clear requirement 2",
+        "Clear requirement 3",
+        "Clear requirement 4"
+      ],
+      "difficulty": "beginner | intermediate | advanced",
+      "estimated_time": "X-Y hours",
+      "skills_focused": [
+        "Skill 1",
+        "Skill 2",
+        "Skill 3"
+      ]
+    }}
+
+    Output ONLY JSON. No text outside the JSON.
+    """
+
+    # === MiniLM Generation ===
+    print("\nGenerating task with MiniLM...\n")
     mini_lm = MiniLM()
-    reward_system = RewardSystem(mini_lm)
-    print("✅ Mini-LM and Reward System ready")
-    print()
+    generated_task_json = mini_lm.generate(
+        prompt=task_prompt,
+        schema_path=os.path.join(os.path.dirname(__file__), "schemas", "generator_schema.json")
+    )
 
-    # Step 3: Generate next task using Mini-LM with SCHEMA ENFORCEMENT
-    print("🎯 Step 3: Generating next task with Mini-LM + schema enforcement...")
+    print("Generated Task (MiniLM):")
+    print(json.dumps(generated_task_json, indent=4))
 
-    # Create prompt for Mini-LM task generation
-    task_prompt = f"""Generate the next development task for developer '{dev_id}' with skill level '{skill}'.
+    # === Rule-Based Task Generator ===
+    print("\nGenerating rule-based next task...\n")
+    rule_task = generate_next_task(
+        developer_id,
+        skill,
+        last_task,
+        review_output
+    )
 
-Last completed task: {last_task}
-Repository review score: {review_output['score']}/10
-Review feedback: {', '.join(review_output.get('weaknesses', ['various issues']))}
+    print("Rule-Based Task Output:")
+    print(json.dumps(rule_task, indent=4))
 
-Generate a task in this exact JSON format:
-{{
-  "task_id": "unique_task_id",
-  "title": "Task Title",
-  "description": "Detailed description",
-  "steps": ["Step 1", "Step 2", "Step 3", "Step 4"],
-  "acceptance_criteria": ["Criteria 1", "Criteria 2", "Criteria 3", "Criteria 4"],
-  "difficulty": "{skill}",
-  "estimated_time": "X-X hours"
-}}
+    # === RL Feedback Loop ===
+    print("\nRunning RL feedback training...\n")
+    reward_system = RewardSystem()
 
-Output ONLY valid JSON, no other text."""
+    reward = reward_system.evaluate_output(
+        prompt=task_prompt,
+        output=generated_task_json,
+        schema_path=os.path.join(os.path.dirname(__file__), "schemas", "generator_schema.json")
+    )
 
-    # Load task generation schema
-    task_schema_path = os.path.join(os.path.dirname(__file__), 'schemas', 'generator_schema.json')
-    with open(task_schema_path) as f:
-        task_schema = json.load(f)
+    print(f"Reward from validation: {reward}")
 
-    # Generate task with schema enforcement and retry
-    max_retries = 3
-    task_output = None
+    # Training Loop
+    reward_system.train_model(
+        model=mini_lm,
+        prompt=task_prompt,
+        expected_schema_path=os.path.join(os.path.dirname(__file__), "schemas", "generator_schema.json"),
+        num_iterations=3
+    )
 
-    for attempt in range(max_retries):
-        try:
-            print(f"🤖 Mini-LM generation attempt {attempt + 1}...")
-            raw_output = mini_lm.generate(task_prompt, max_tokens=300, schema=task_schema)
-            print(f"✅ Raw output: {raw_output[:150]}...")
+    print("\n=== Pipeline Complete ===")
 
-            # Parse and validate
-            parsed_task = json.loads(raw_output)
-            # Basic validation
-            required_fields = ['task_id', 'title', 'description', 'steps', 'acceptance_criteria', 'difficulty', 'estimated_time']
-            if all(field in parsed_task for field in required_fields):
-                task_output = parsed_task
-                print("✅ Valid task generated by Mini-LM")
-                break
-            else:
-                print(f"⚠️  Missing required fields, retrying...")
-
-        except Exception as e:
-            print(f"❌ Generation failed: {e}, retrying...")
-
-    # Fallback to template if Mini-LM fails
-    if task_output is None:
-        print("⚠️  Mini-LM generation failed, using template fallback...")
-        task_output = generate_next_task(dev_id, skill, last_task, review_output)
-
-    print(f"📋 Final task: {task_output.get('title', 'Unknown')}")
-    print(f"🎯 Description: {task_output.get('description', 'No description')[:100]}...")
-    print(f"📚 Difficulty: {task_output.get('difficulty', 'unknown')}")
-
-    print(f"📚 Final Task - Difficulty: {task_output.get('difficulty', 'unknown')}")
-    print(f"🎯 Next Task: {task_output.get('next_task', task_output.get('task_description', 'Unknown task'))}")
-    print()
-
-    # Step 4: Evaluate task generation with RL rewards
-    print("🏆 Step 4: Evaluating with RL rewards...")
-    task_json = json.dumps(task_output)
-
-    reward = reward_system.evaluate_output(task_prompt, task_json, {})
-    print(f"🎖️  Reward: {reward} (+1 for valid, -1 for invalid)")
-    print()
-
-    # Step 5: Run RL Training Loop (Output → Reward → Model Update)
-    print("🧠 Step 5: Running RL Training Loop (Output → Reward → Model Update)...")
-    try:
-        rl_stats = reward_system.run_rl_training_loop(mini_lm, reward_system, num_iterations=3)
-        print(f"✅ RL training completed - {rl_stats['model_updates']} model updates performed")
-        print(f"📊 Average reward: {sum(rl_stats['avg_rewards'])/len(rl_stats['avg_rewards']):.2f}")
-    except Exception as e:
-        print(f"⚠️  RL training failed: {e}")
-    print()
-
-    # Step 6: Final RL stats
-    print("📊 Step 6: Final RL Performance Stats...")
-    rl_stats = reward_system.get_rl_stats()
-    print(f"🧠 Final Learning Rate: {rl_stats['learning_rate']:.4f}")
-    print(f"📈 Total RL Steps: {rl_stats['total_steps']}")
-    if rl_stats['total_steps'] > 0:
-        print(f"📊 Average Reward: {rl_stats['average_reward']:.2f}")
-    print()
-
-    result = {
-        "review": review_output,
-        "next_task": task_output,
-        "rl_stats": rl_stats,
-        "pipeline_status": "completed"
-    }
-
-    print("🎉 Pipeline execution completed successfully!")
-    return result
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 5:
-        print("Usage: python main.py <repo_url> <dev_id> <skill> <last_task>")
-        sys.exit(1)
-
-    repo_url = sys.argv[1]
-    dev_id = sys.argv[2]
-    skill = sys.argv[3]
-    last_task = sys.argv[4]
-
-    result = pipeline(repo_url, dev_id, skill, last_task)
-    print("Pipeline Result:")
-    print(result)
+    run_pipeline()

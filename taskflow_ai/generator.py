@@ -33,53 +33,15 @@ TASK_TEMPLATE = {
 def generate_next_task(developer_id: str, current_skill: str, last_task: str, review: dict) -> dict:
     """
     Generates the next task using STRICT RULE-BOUND TEMPLATE - NO LLM.
-    Pure deterministic template filling based on review score.
+    Uses ALL reviewer output fields: score, good_aspects, missing_aspects.
+    Pure deterministic template filling with context awareness.
     """
     score = review.get("score", 5)
+    good_aspects = review.get("good_aspects", [])
+    missing_aspects = review.get("missing_aspects", [])
 
-    # RULE-BASED TEMPLATE SELECTION - STRICT DETERMINISTIC
-    if score <= 3:
-        # POOR SCORE - FOCUS ON BASICS
-        template_data = {
-            "task_description": "Address fundamental repository issues and establish proper structure by creating comprehensive documentation and organizing the project layout.",
-            "requirement1": "Create comprehensive README.md with project overview, setup instructions, and usage examples",
-            "requirement2": "Add proper project structure and organization with clear folder hierarchy",
-            "requirement3": "Include basic documentation for all code files with comments and docstrings",
-            "requirement4": "Add license file and contribution guidelines to make the project professional",
-            "difficulty": "beginner",
-            "estimated_time": "2-3 hours",
-            "skill1": "Documentation",
-            "skill2": "Project Organization",
-            "skill3": "Professional Development Practices"
-        }
-    elif score <= 6:
-        # FAIR SCORE - FOCUS ON QUALITY
-        template_data = {
-            "task_description": "Enhance code quality through systematic refactoring, testing implementation, and improved error handling to make the codebase more maintainable and reliable.",
-            "requirement1": "Analyze existing code for improvement areas and potential bugs",
-            "requirement2": "Refactor code for better readability, maintainability, and following best practices",
-            "requirement3": "Add comprehensive unit tests for core functionality with good coverage",
-            "requirement4": "Improve error handling and input validation throughout the application",
-            "difficulty": "intermediate",
-            "estimated_time": "4-6 hours",
-            "skill1": "Code Quality",
-            "skill2": "Testing",
-            "skill3": "Error Handling"
-        }
-    else:
-        # GOOD SCORE - FOCUS ON ADVANCED FEATURES
-        template_data = {
-            "task_description": "Implement advanced functionality and performance optimizations to take the project to the next level with production-ready features and monitoring capabilities.",
-            "requirement1": "Identify performance bottlenecks and implement optimization strategies",
-            "requirement2": "Implement advanced features based on project requirements and user needs",
-            "requirement3": "Add comprehensive integration tests and end-to-end testing",
-            "requirement4": "Implement logging, monitoring, and observability capabilities for production use",
-            "difficulty": "advanced",
-            "estimated_time": "6-8 hours",
-            "skill1": "Performance Optimization",
-            "skill2": "Advanced Development",
-            "skill3": "Production Engineering"
-        }
+    # CONTEXT-AWARE TEMPLATE SELECTION - Uses ALL reviewer data
+    template_data = select_context_aware_template(score, good_aspects, missing_aspects, current_skill, last_task)
 
     # STRICT TEMPLATE FILLING - MATCHES generator_schema.json
     task = TASK_TEMPLATE.copy()
@@ -102,7 +64,155 @@ def generate_next_task(developer_id: str, current_skill: str, last_task: str, re
         task["skills_focused"][2].format(skill3=template_data["skill3"])
     ]
 
+    # VALIDATE AGAINST SCHEMA - STRICT ENFORCEMENT
+    if generator_schema:
+        try:
+            validate(instance=task, schema=generator_schema)
+            print(f"✅ Task generation validation passed for score {score}")
+        except ValidationError as e:
+            print(f"❌ Task generation schema validation failed: {e.message}")
+            # Generate schema-compliant fallback
+            task = generate_schema_compliant_fallback(generator_schema, score)
+    else:
+        print("⚠️  No schema available for validation")
+
     return task
+
+
+def select_context_aware_template(score: int, good_aspects: list, missing_aspects: list, current_skill: str, last_task: str) -> dict:
+    """
+    Selects template based on ALL reviewer context, not just score.
+    Uses good_aspects, missing_aspects, current_skill, and last_task for intelligent selection.
+    """
+    # Analyze missing aspects to determine focus areas
+    missing_keywords = ' '.join(missing_aspects).lower()
+
+    # Determine difficulty based on score and skill level
+    if score <= 3:
+        difficulty = "beginner"
+        estimated_time = "2-3 hours"
+    elif score <= 6:
+        difficulty = "intermediate"
+        estimated_time = "4-6 hours"
+    else:
+        difficulty = "advanced"
+        estimated_time = "6-8 hours"
+
+    # Context-aware template selection based on missing aspects
+    if "documentation" in missing_keywords or "readme" in missing_keywords:
+        return {
+            "task_description": "Improve project documentation and establish professional standards by creating comprehensive documentation and project structure.",
+            "requirement1": "Create detailed README.md with setup instructions, usage examples, and API documentation",
+            "requirement2": "Add proper project structure with clear folder organization and naming conventions",
+            "requirement3": "Include inline documentation and docstrings for all public functions and classes",
+            "requirement4": "Add license, contribution guidelines, and code of conduct files",
+            "difficulty": difficulty,
+            "estimated_time": estimated_time,
+            "skill1": "Technical Writing",
+            "skill2": "Project Organization",
+            "skill3": "Professional Development"
+        }
+
+    elif "test" in missing_keywords or "testing" in missing_keywords:
+        return {
+            "task_description": "Implement comprehensive testing strategy to ensure code reliability and prevent regressions.",
+            "requirement1": "Set up testing framework and write unit tests for core functionality",
+            "requirement2": "Add integration tests for component interactions and API endpoints",
+            "requirement3": "Implement test automation in CI/CD pipeline",
+            "requirement4": "Add code coverage reporting and maintain minimum coverage thresholds",
+            "difficulty": difficulty,
+            "estimated_time": estimated_time,
+            "skill1": "Testing",
+            "skill2": "Quality Assurance",
+            "skill3": "CI/CD"
+        }
+
+    elif "error" in missing_keywords or "handling" in missing_keywords or "validation" in missing_keywords:
+        return {
+            "task_description": "Enhance error handling and input validation throughout the application for better reliability and user experience.",
+            "requirement1": "Implement comprehensive input validation for all user inputs and API parameters",
+            "requirement2": "Add proper error handling with meaningful error messages and logging",
+            "requirement3": "Create custom exception classes for different error scenarios",
+            "requirement4": "Add graceful degradation and fallback mechanisms for error conditions",
+            "difficulty": difficulty,
+            "estimated_time": estimated_time,
+            "skill1": "Error Handling",
+            "skill2": "Input Validation",
+            "skill3": "Robust Programming"
+        }
+
+    else:
+        # Default template based on score
+        if score <= 3:
+            return {
+                "task_description": "Address fundamental repository issues and establish proper development practices.",
+                "requirement1": "Create comprehensive README.md with project overview and setup instructions",
+                "requirement2": "Add proper project structure and organization",
+                "requirement3": "Include basic documentation for all code files",
+                "requirement4": "Add license and contribution guidelines",
+                "difficulty": difficulty,
+                "estimated_time": estimated_time,
+                "skill1": "Documentation",
+                "skill2": "Project Organization",
+                "skill3": "Professional Practices"
+            }
+        elif score <= 6:
+            return {
+                "task_description": "Enhance code quality through systematic improvements and best practices implementation.",
+                "requirement1": "Refactor code for better readability and maintainability",
+                "requirement2": "Add unit tests for core functionality",
+                "requirement3": "Improve error handling and input validation",
+                "requirement4": "Implement code formatting and linting standards",
+                "difficulty": difficulty,
+                "estimated_time": estimated_time,
+                "skill1": "Code Quality",
+                "skill2": "Testing",
+                "skill3": "Best Practices"
+            }
+        else:
+            return {
+                "task_description": "Implement advanced features and optimizations to elevate the project to production-ready standards.",
+                "requirement1": "Identify and implement performance optimizations",
+                "requirement2": "Add advanced features based on project requirements",
+                "requirement3": "Implement comprehensive integration testing",
+                "requirement4": "Add logging, monitoring, and observability capabilities",
+                "difficulty": difficulty,
+                "estimated_time": estimated_time,
+                "skill1": "Performance Optimization",
+                "skill2": "Advanced Development",
+                "skill3": "Production Engineering"
+            }
+
+
+def generate_schema_compliant_fallback(schema: dict, score: int) -> dict:
+    """
+    Generate a schema-compliant fallback task when validation fails.
+    """
+    fallback = {
+        "task_description": "Complete a development task to improve your skills and project quality.",
+        "requirements": [
+            "Analyze the current codebase and identify improvement areas",
+            "Implement the identified improvements",
+            "Test the changes thoroughly",
+            "Document the changes made"
+        ],
+        "difficulty": "intermediate" if score > 5 else "beginner",
+        "estimated_time": "3-4 hours",
+        "skills_focused": ["Problem Solving", "Code Quality", "Development Practices"]
+    }
+
+    # Ensure compliance with schema
+    if schema:
+        try:
+            validate(instance=fallback, schema=schema)
+        except ValidationError:
+            # If still not compliant, use minimal required fields
+            fallback = {
+                "task_description": "Complete development task",
+                "requirements": ["Implement improvements", "Test changes"]
+            }
+
+    return fallback
 
 
 # -------------------------------------------------------------------
