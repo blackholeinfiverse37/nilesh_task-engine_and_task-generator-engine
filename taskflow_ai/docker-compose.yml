@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  taskflow-api:
+    build: .
+    ports:
+      - "5000:5000"  # API server
+      - "5001:5001"  # Dashboard
+    environment:
+      - PYTHONPATH=/app
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}  # Optional GitHub token
+    volumes:
+      - ./models:/app/models  # Persist fine-tuned models
+      - ./logs:/app/logs      # Persist logs if any
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - taskflow-network
+
+  # Optional: Redis for caching (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - taskflow-network
+
+networks:
+  taskflow-network:
+    driver: bridge
+
+# volumes:
+#   redis_data:

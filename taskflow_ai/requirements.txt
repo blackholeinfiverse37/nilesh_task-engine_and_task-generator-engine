@@ -6,3 +6,5 @@ jsonschema
 datasets
 accelerate
 python-dotenv
+flask
+flask-cors

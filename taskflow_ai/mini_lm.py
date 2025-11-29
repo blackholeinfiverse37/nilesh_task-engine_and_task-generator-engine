@@ -34,20 +34,57 @@ class MiniLM:
     """
     Rule-bound Mini-LM with strict guardrails and schema enforcement.
     Acts as a small, deterministic language model with constrained outputs.
+    Includes lazy loading and caching for performance.
     """
 
+    _instance = None
+    _model_cache = {}
+
+    def __new__(cls, model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
+        """Singleton pattern with model caching."""
+        if cls._instance is None:
+            cls._instance = super(MiniLM, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
-        logger.info(f"Loading rule-bound Mini-LM: {model_name}")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        # Only initialize once due to singleton pattern
+        if hasattr(self, '_initialized'):
+            return
 
-        # Set pad token if not present
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.model_name = model_name
+        self._initialized = True
+        self._model_loaded = False
 
-        # Load schema for validation
+        # Load schema for validation (doesn't require model)
         self.schema = self._load_schema()
-        logger.info("Mini-LM loaded with guardrails and schema enforcement")
+        logger.info(f"MiniLM initialized with schema enforcement (model: {model_name})")
+
+    def _ensure_model_loaded(self):
+        """Lazy load the model and tokenizer."""
+        if self._model_loaded:
+            return
+
+        logger.info(f"Lazy loading model: {self.model_name}")
+
+        # Check cache first
+        if self.model_name in self._model_cache:
+            logger.info("Loading model from cache")
+            self.tokenizer, self.model = self._model_cache[self.model_name]
+        else:
+            logger.info("Loading model from pretrained")
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+
+            # Set pad token if not present
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+
+            # Cache the loaded model
+            self._model_cache[self.model_name] = (self.tokenizer, self.model)
+            logger.info(f"Model cached for future use: {self.model_name}")
+
+        self._model_loaded = True
+        logger.info("MiniLM model loaded and ready")
 
     def _load_schema(self):
         """Load JSON schema for output validation."""
@@ -76,6 +113,9 @@ class MiniLM:
         # RULE: If template provided, use it directly (no LLM generation)
         if template:
             return self._apply_template(template, prompt)
+
+        # Ensure model is loaded (lazy loading)
+        self._ensure_model_loaded()
 
         # Use provided schema or default
         validation_schema = schema or self.schema
